@@ -9,7 +9,7 @@
 
 name: unit-tests
 
-run-name: ${{ gethub.actor }} running unit-tests
+run-name: ${{ github.actor }} running unit-tests
 
 on:
   push:
