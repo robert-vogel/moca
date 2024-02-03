@@ -298,4 +298,34 @@ def is_rank(X):
         raise ValueError("Data must be a 1-d or 2-d ndarray.")
 
 
+def is_auc(auc):
+    """Is the float or iterable auc value(s).
 
+    Returns:
+        (bool)
+    """
+    if isinstance(auc, numbers.Number):
+        return auc >= 0 and auc <= 1
+
+    valid_auc = False
+
+    for val in auc:
+        if isinstance(val, numbers.Number):
+            valid_auc = (val >= 0 and val <= 1)
+
+        if not valid_auc:
+            return False
+
+    return True
+
+
+def is_prevalence(prevalence):
+    """Check prevalence value.
+
+    Returns:
+        (bool)
+    """
+    if isinstance(prevalence, numbers.Number):
+        return prevalence < 1 and prevalence > 0
+
+    return False

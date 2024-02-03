@@ -25,7 +25,7 @@ class TestMeanRank(TestCase):
 
     def test_value(self):
         for n in range(2, 100):
-            self.assertEqual((n-1)/2, stats.mean_rank(n))
+            self.assertEqual((n+1)/2, stats.mean_rank(n))
 
 
 class TestVarianceRank(TestCase):
@@ -205,6 +205,31 @@ class TestRank(TestCase):
 
 class TestIsRank(TestCase):
     pass
+
+class TestIsPrevalence(TestCase):
+    def test_correct(self):
+        self.assertTrue(stats.is_prevalence(0.1))
+
+    def test_error(self):
+        self.assertFalse(stats.is_prevalence(-0.1))
+        self.assertFalse(stats.is_prevalence(1.1))
+        self.assertFalse(stats.is_prevalence("a"))
+        self.assertFalse(stats.is_prevalence([0.1]))
+
+
+class TestIsAuc(TestCase):
+    def test_correct(self):
+        self.assertTrue(stats.is_auc(0.2))
+        self.assertTrue(stats.is_auc([0.1, 0.2, 0.8]))
+        self.assertTrue(stats.is_auc(np.array([0.1, 0.9])))
+
+    def test_false(self):
+        self.assertFalse(stats.is_auc(-0.2))
+        self.assertFalse(stats.is_auc("a"))
+        self.assertFalse(stats.is_auc("ac"))
+        self.assertFalse(stats.is_auc([1.1, 0.2, 0.8]))
+        self.assertFalse(stats.is_auc(np.array([0.1, -0.9])))
+
 
 if __name__ == "__main__":
     main()
