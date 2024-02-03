@@ -1,18 +1,16 @@
-"""MOCA package classifiers
+"""moca package classifiers
 
 By: Robert Vogel
-Current Affiliation: Scripps Research
 
-
-The classifiers of the MOCA packages are all subclasses of the Moca 
-abstract base class (MocaABC) which defines the interface and
-default initialization of the implemented classifiers.  The included
-classifiers are:
-    * Smoca, implements the supervised MOCA algorithm,
-    * Umoca, implements the unsupervised MOCA algorithm, and
+The classifiers of the moca packages are all subclasses
+of the Moca abstract base class (MocaABC) which defines
+the interface and default initialization of the implemented
+classifiers.  The included classifiers are:
+    * Smoca, implements the supervised moca algorithm,
+    * Umoca, implements the unsupervised moca algorithm, and
     * Woc, implements the wisdom of crowds classifier.
-Additional classes are define to support each of the aforementioned
-classifiers.
+Additional classes are define to support each of the
+aforementioned classifiers.
 """
 
 import numpy as np
@@ -20,7 +18,7 @@ import numpy as np
 from . import stats
 from . import cross_validate as cv
 
-from pySUMMA import Summa
+from summa import Summa
 
 class MocaABC:
     """Moca abstract base class.
@@ -47,66 +45,72 @@ class MocaABC:
         raise NotImplementedError
 
     def get_scores(self, data):
-        """Compute MOCA score for each sample.
+        """Compute moca score for each sample.
 
         Args:
-            data : M base classifier by N sample array of rank predictions 
-                ((M, N) ndarray)
+            data : ((M classifier, N sample) np.ndarray)
+                rank predictions
 
         Returns:
-            s : MOCA score for each of the N samples
-                ((N,) ndarray)
+            s : ((N sample,) np.ndarray) moca sample scores
         """
-        # check that predictions by M methods are made.  It is the user's responsiblity
+        # check that predictions by M methods are made. 
+        # It is the user's responsiblity
         # that the order of methods is correct.
         if data.ndim != 2:
-            raise ValueError(("Input data needs to be (M, N) ndarray (ndim = 2), "
-                              "input data dim = {}").format(data.ndim))
+            raise ValueError(("Input data needs to be (M, N)"
+                              " np.ndarray (ndim = 2), input data"
+                              f" dim = {data.ndim}"))
+
         if data.shape[0] != self.M:
-            raise ValueError(("Input sample does not consist"
-                              " of predictions by {} methods").format(self.M))
+            raise ValueError(("Input sample does not consist of"
+                              f" predictions by {self.M}"
+                              " methods"))
 
         stats.is_rank(data)
 
         s = np.zeros(data.shape[1])
         c = 0
-        for j in range(self.M):
-            s += self.weights[j] * data[j, :]
-            c += self.weights[j]
+        for j, w in enumerate(self.weights):
+            s += w * data[j, :]
+            c += w
         return stats.mean_rank(data.shape[1])*c - s
 
     def get_inference(self, data):
-        """Estimate class labels from MOCA scores.
+        """Estimate class labels from moca scores.
         
-        The \hat{N1} samples with the highest MOCA scores are labeled class 1, 
-        where \hat{N1} = int(self.prevalence * N).
+        The \hat{N1} samples with the highest moca scores are
+        labeled class 1, where
+        \hat{N1} = int(self.prevalence * N).
 
         Args:
-            data : N sample rank predictions by M base classfiers
-                ((M, N) ndarray)
+            data : ((M classifiers, N samples) np.ndarray)
+                rank predictions
 
         Returns:
-            labels : Inferred class labels, 1 designating positive class 
-                and 0 negative class. ((N,) ndarray)
+            labels : ((N,) np.ndarray)
+                Sample inferred class labels
 
         Raises:
             ValueError: if the predicted number of samples to 
-                be of the positive class is either 0 or N.            
+                be of the positive class is either 0 or N. 
         """
         N = data.shape[1]
         labels = np.zeros(N)
         
-        # Get the idx that would sort sample MOCA scores.
+        # Get the idx that would sort sample moca scores.
         # Note that negative is so that samples believed to be of
-        # the positive class, high MOCA score, will be sorted to 
+        # the positive class, high moca score, will be sorted to 
         # low values making subsequent indexing easier.
         idx = np.argsort(-self.get_scores(data))
         idx_thresh = np.int(self.prevalence * N)
         
         if idx_thresh == 0:
-            raise ValueError("No samples predicted to be in positive class")
+            raise ValueError(("No samples predicted to be in"
+                              " positive class"))
         elif idx_thresh >= N:
-            raise ValueError("All samples predicted to be in positive class")
+            raise ValueError(("All samples predicted to be in"
+                              " positive class"))
 
         labels[idx[:idx_thresh]] = 1.
         return labels
@@ -234,7 +238,7 @@ class GreedySearchMocaStatsManager:
 
 
 class Smoca(MocaABC):
-    """Supervised MOCA.
+    """Supervised moca.
     
     Args:
         subset_select: ("greedy" or None) how to perform subset selection
@@ -433,7 +437,7 @@ class Umoca(MocaABC):
     def _infer_alpha(T, cov_eig_val, cov_eig_vec, tensor_singular_value):
         """Compute alpha by minimizing the sum squared errors.
         
-        According to MOCA theory, the elements ijj (i\neq j) of the 
+        According to moca theory, the elements ijj (i\neq j) of the 
         M x M x M third central moment tensor (T) of rank predictions by 
         M conditionally independent binary classifiers is
         
@@ -655,14 +659,14 @@ class BaseClassifier(MocaABC):
         self.M = data.shape[0]
 
     def get_scores(self, data):
-        """Transform sample rank values to MOCA scores.
+        """Transform sample rank values to moca scores.
 
         Args:
             data : M base classifier by N sample array of rank predictions 
                 ((M, N) ndarray)
 
         Returns:
-            s : MOCA score for each of the N samples, ((N,) ndarray)
+            s : moca score for each of the N samples, ((N,) ndarray)
         """
         if data.ndim != 2:
             raise ValueError(("Input data needs to be (M, N) ndarray (ndim = 2), "
