@@ -17,6 +17,7 @@ import warnings
 import numbers
 import numpy as np
 from scipy.stats import rankdata
+from scipy.special import ndtri
 
 def mean_rank(N):
     """Compute the mean of N sample ranks on interval [1,N]"""
@@ -329,3 +330,18 @@ def is_prevalence(prevalence):
         return prevalence < 1 and prevalence > 0
 
     return False
+
+def auc_to_delta(auc, positive_var, negative_var):
+    """Auc to the difference in class conditioned rank.
+
+    \Delta_i = \sqrt{cov_i|positive_class + cov_i|negative_class}
+                * inv_standard_normal_cumulative(auc_i)
+
+    Reference:
+        Marzben, C. "The ROC Curve and the Area under It
+        as Performance Measures", Weather and Forecasting 2004.
+    """
+    if not is_auc(auc):
+        raise ValueError("Not valid AUC value.")
+
+    return np.sqrt(positive_var + negative_var) * ndtri(auc)

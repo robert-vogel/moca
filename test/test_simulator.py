@@ -3,300 +3,252 @@ from unittest import TestCase, main
 
 import numpy as np
 
-from scipy.special import ndtr
 from moca import simulate
 
 
-def delta2auc(delta, *v):
-    return ndtr(delta / np.sqrt(v[0] + v[1]))
+class TestSampleNetwork(TestCase):
+    seed = 42
+
+    def test_reproducibility(self):
+
+        for n in (2, 5, 10, 20, 50):
+            network = simulate._sample_network(n, seed=self.seed)
+
+            self.assertTrue((
+                network
+                == simulate._sample_network(n,seed=self.seed)
+                ).all())
+
+    def test_diagonal(self):
+        rng = np.random.default_rng(seed=self.seed)
+
+        for n in (2, 5, 10, 20, 50):
+
+            network = simulate._sample_network(n, seed=rng)
+
+            for i in range(n):
+
+                summation = 0
+
+                for j in range(n):
+
+                    if i == j:
+                        self.assertTrue(network[i, i] < 0)
+                        continue
+                        
+                    self.assertTrue(network[i,j] > 0)
+                    summation += network[i, j]
+
+                self.assertTrue(summation < np.abs(network[i,i]))
 
 
-class TestEnsembleGaussianPredictionsParseAuc(TestCase):
-    def test_obvious_errors(self):
-        with self.assertRaises(TypeError):
-            simulate.EnsembleGaussianPredictions()
+class TestCorrMatrix(TestCase):
+    seed = 42
 
-        with self.assertRaises(TypeError):
-            simulate.EnsembleGaussianPredictions(
-                    m_classifiers=10
-                    )
+    def test_identity(self):
+
+        for n in (3, 4, 8, 16, 32, 64):
+            corr = simulate.make_corr_matrix(n, independent=True)
+
+            self.assertTrue((corr == np.eye(n)).all())
+
+    def test_reproducibility(self):
+
+        for n in (3, 5, 10, 20, 50):
+            corr = simulate.make_corr_matrix(n, seed=self.seed)
+
+            self.assertTrue((
+                corr
+                == simulate.make_corr_matrix(n, seed=self.seed)
+                ).all())
+
+
+    def test_input_filters(self):
+        with self.assertRaises(ValueError):
+            simulate.make_corr_matrix(2)
 
         with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc = [-0.1, 0.2, 0.5],
-                    )
-
-        with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc = [0.1, 0.2, 1.5],
-                    )
-
-        with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc = 1.5,
-                    m_classifiers = 10,
-                    )
-
-        with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc =-0.1, 
-                    m_classifiers = 10,
-                    )
-
-        with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc =(-0.1, 0.8), 
-                    m_classifiers = 10,
-                    )
-
-        with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc =(0.1, 1.8), 
-                    m_classifiers = 10,
-                    )
-
-        with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc =(0.1, 1.8), 
-                    m_classifiers = 2,
-                    )
-
-        with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc =(-0.1, 0.8), 
-                    m_classifiers = 2,
-                    )
-
-        with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(
-                    auc =(0.9, 0.8), 
-                    m_classifiers = 10,
-                    )
-
-        with self.assertRaises(ValueError):
-            target_auc = [0.1, 0.2, 0.5]
-            simulate.EnsembleGaussianPredictions(
-                    auc = target_auc,
-                    m_classifiers=10
-                    )
-
-    def validate_auc_input(self, true_auc, g):
-        # assert correct number of classifiers
-        self.assertEqual(len(true_auc), len(g))
-
-        for i, (auc, delta) in enumerate(zip(true_auc, g._delta)):
-            test_auc = delta2auc(delta, g._cov[i, i], g._cov[i, i])
-            self.assertAlmostEqual(auc, test_auc)
-
-    def test_auc_generation_from_range(self):
-        # I want to generate 10 b.c.'s on the range [0.2, 0.5]
-        target_auc = np.linspace(0.2, 0.5, 10)
-        g = simulate.EnsembleGaussianPredictions(
-                    auc = [0.2, 0.5],
-                    m_classifiers=10
-                    )
-        self.validate_auc_input(target_auc, g)
-
-
-        # I want these 15 auc values
-        target_auc = np.linspace(0.4, 0.75, 15)
-        g = simulate.EnsembleGaussianPredictions(auc=(0.4, 0.75), 
-                            m_classifiers = 15)
-        self.validate_auc_input(target_auc, g)
-
-        # I want these 15 auc values when cov information is specified
-        target_auc = np.linspace(0.4, 0.75, 15)
-        g = simulate.EnsembleGaussianPredictions(auc=(0.4, 0.75),
-                                        m_classifiers = 15,
-                                        group_sizes=(4, 2, 4),
-                                        group_corrs=(0.6, 0.7, 0))
-        self.validate_auc_input(target_auc, g)
-
-    def test_bc_specified_aucs(self):
-        # the length of an array takes precedence over m_classifiers
-        # in determining the length of an array
-        target_auc = [0.1, 0.2, 0.5]
-        g = simulate.EnsembleGaussianPredictions(
-                    auc = target_auc,
-                    )
-        self.validate_auc_input(target_auc, g)
-
-        # I want these 3 auc values when cov pars specified
-        g = simulate.EnsembleGaussianPredictions(auc=(0.8, 0.63, 0.713),
-                                    group_sizes=(2, 1),
-                                    group_corrs=(0.6, 0))
-        self.validate_auc_input((0.8, 0.63, 0.713), g)
-
-    def test_auc_generation_from_float(self):
-        # I want two base classifiers with auc 0.8
-        m_classifiers = 2
-        target_auc = 0.8
-        g = simulate.EnsembleGaussianPredictions(
-                auc = target_auc,
-                m_classifiers = m_classifiers
-                )
-        self.validate_auc_input([target_auc for _ in range(m_classifiers)], g)
-
-        # I want 38 base classifiers with AUC 0.6
-        m_classifiers = 38
-        target_auc = 0.6
-        g = simulate.EnsembleGaussianPredictions(
-                auc = target_auc,
-                m_classifiers = m_classifiers
-                )
-        self.validate_auc_input([target_auc for _ in range(m_classifiers)], g)
-
-        # docstring example
-        g = simulate.EnsembleGaussianPredictions(auc = 0.7, m_classifiers = 10)
-
-        self.validate_auc_input([0.7 for _ in range(10)], g)
-
-
-
-class TestEnsembleGaussianPredictionsCov(TestCase):
-    def validate_cov_vals(self, group_corrs, group_sizes, cov_test):
-        m_classifiers = cov_test.shape[0]
-
-        cov_true = self.mk_cov_matrix(group_corrs, 
-                                group_sizes, 
-                                m_classifiers)
-
-        for i in range(m_classifiers):
-            for j in range(m_classifiers):
-                self.assertEqual(cov_true[i, j], cov_test[i, j])
-
-    def mk_cov_matrix(self, group_corrs, group_sizes, m):
-        if group_corrs is None:
-            return np.eye(m)
-
-        cov = np.zeros(shape=(m, m))
-
-        # build index ranges
-        idx_ranges = [(0, group_sizes[0])]
-        for gs in group_sizes[1:]:
-            idx_ranges.append((idx_ranges[-1][1], gs + idx_ranges[-1][1]))
-
-        # build cov matrix
-        for g, idx_range in enumerate(idx_ranges):
-            for i in range(*idx_range):
-                for j in range(*idx_range):
-                    cov[i, j] = group_corrs[g]
-
-        # set diagonal to 1
-        for i in range(m):
-            cov[i, i] = 1
-
-        return cov
-
-    def test_errors(self):
-        with self.assertRaises(TypeError):
-            simulate.EnsembleGaussianPredictions(auc=0.7, 
-                                m_classifiers=10,
-                                group_corrs = 0.7)
+            simulate.make_corr_matrix(-5)
 
         with self.assertRaises(TypeError):
-            simulate.EnsembleGaussianPredictions(auc=0.7, 
-                                m_classifiers=10,
-                                group_sizes = (0.7,))
+            simulate.make_corr_matrix("goat")
+    
+    def test_diagonal(self):
+        for n in (3, 5, 10, 20, 50):
+            corr = simulate.make_corr_matrix(n)
 
-        with self.assertRaises(TypeError):
-            simulate.EnsembleGaussianPredictions(auc=0.7, 
-                                m_classifiers=10,
-                                group_sizes = (5,))
+            self.assertEqual(n, np.linalg.matrix_rank(corr))
 
-        with self.assertRaises(TypeError):
-            simulate.EnsembleGaussianPredictions(auc=0.7, 
-                                m_classifiers=10,
-                                group_sizes = 5)
+            for i in range(n):
+                self.assertEqual(corr[i, i], 1)
+
+                for j in range(n):
+                    self.assertTrue(corr[i, j] >= -1)
+                    self.assertTrue(corr[i, j] <= 1)
+
+                    self.assertAlmostEqual(corr[i,j],
+                                           corr[j,i],
+                                           places=8)
+
+
+class TestGaussianScores(TestCase):
+    n_samples = 100
+    n_positive = 25
+    auc = np.array([0.1, 0.6, 0.7])
+    m = auc.size
+    corr_matrix = np.eye(m)
+    seed=42
+
+    def test_filter(self):
+        with self.assertRaises(ValueError):
+            simulate.gaussian_scores(self.n_samples,
+                                     self.n_samples + 1,
+                                     self.auc,
+                                     self.corr_matrix)
 
         with self.assertRaises(ValueError):
-            simulate.EnsembleGaussianPredictions(auc=0.7, 
-                                m_classifiers=10,
-                                group_corrs = 5,
-                                group_sizes = (3,))
+            simulate.gaussian_scores(-self.n_samples,
+                                     self.n_positive,
+                                     self.auc,
+                                     self.corr_matrix)
 
-        with self.assertRaises(TypeError):
-            simulate.EnsembleGaussianPredictions(auc=0.7, 
-                                m_classifiers=10,
-                                group_corrs = 0.55,
-                                group_sizes = (3,np.nan))
+        with self.assertRaises(ValueError):
+            simulate.gaussian_scores(-self.n_samples,
+                                     -self.n_positive,
+                                     self.auc,
+                                     self.corr_matrix)
 
-        with self.assertRaises(TypeError):
-            simulate.EnsembleGaussianPredictions(auc=0.7, 
-                                m_classifiers=10,
-                                group_corrs = 0.5,
-                                group_sizes = (3,None))
+        with self.assertRaises(ValueError):
+            simulate.gaussian_scores(self.n_samples,
+                                     -self.n_positive,
+                                     self.auc,
+                                     self.corr_matrix)
 
+        with self.assertRaises(ValueError):
+            simulate.gaussian_scores(self.n_samples,
+                                     np.array([self.n_positive,
+                                               self.n_positive]),
+                                     self.auc,
+                                     self.corr_matrix)
 
-    def test_default(self):
-        g = simulate.EnsembleGaussianPredictions(auc=0.7, m_classifiers=10)
-        self.validate_cov_vals(None, None, g._cov)
-
-    def test_float_corr_list_sizes(self):
-        # I want all classifiers in distinct groups, but each group
-        # to exhibit the same correlation between group members
-        g = simulate.EnsembleGaussianPredictions(auc=(0.4, 0.75),
-                                        m_classifiers = 15,
-                                        group_sizes=(4, 2, 4),
-                                        group_corrs=0.7)
-        self.validate_cov_vals((0.7, 0.7, 0.7), (4, 2, 4), g._cov)
-
-        # I want a subset of classifiers to be conditionally dependent, 
-        # such that the correlation between group members are the same.
-        # the remaining base classifiers are independent
-
-        g = simulate.EnsembleGaussianPredictions(auc=(0.4, 0.75),
-                                        m_classifiers = 15,
-                                        group_sizes=(4, ),
-                                        group_corrs=0.7)
-        self.validate_cov_vals((0.7, 0), (4, 11), g._cov)
-
-    def test_standard_par_inputs(self):
-        g = simulate.EnsembleGaussianPredictions(auc=(0.4, 0.75),
-                                        m_classifiers = 15,
-                                        group_sizes=(4, 2, 4),
-                                        group_corrs=(0.6, 0.7, 0))
-        self.validate_cov_vals((0.6, 0.7, 0), (4, 2, 4), g._cov)
-
-        g = simulate.EnsembleRankPredictions(auc=(0.8, 0.63, 0.713),
-                                    group_sizes=(2, 1),
-                                    group_corrs=(0.6, 0))
-
-        self.validate_cov_vals((0.6, 0), (2, 1), g._cov)
-
-        g = simulate.EnsembleRankPredictions(auc=(0.8, 0.63, 0.713),
-                                    group_sizes=(2,),
-                                    group_corrs=(0.6,))
-
-        self.validate_cov_vals((0.6,), (2,), g._cov)
+        with self.assertRaises(ValueError):
+            auc = self.auc.copy()
+            auc[0] = -0.3
+            simulate.gaussian_scores(self.n_samples,
+                                     self.n_positive,
+                                     auc,
+                                     self.corr_matrix)
 
 
-class TestEnsembleRankPredictions(TestCase):
-    def test_sample_ranks(self):
-        rsim = simulate.EnsembleRankPredictions(auc=(0.55, 0.74),
-                                m_classifiers=10,
-                                group_sizes=(4,),
-                                group_corrs=(0.7,))
+        with self.assertRaises(ValueError):
+            auc = self.auc.copy()
+            auc[0] = 1.3
+            simulate.gaussian_scores(self.n_samples,
+                                     self.n_positive,
+                                     auc,
+                                     self.corr_matrix)
 
-        n_samples = 100
-        n1_samples = 30
-        r, y = rsim.sample(n_samples, n1_samples)
+        with self.assertRaises(AttributeError):
+            auc = self.auc.tolist()
+            simulate.gaussian_scores(self.n_samples,
+                                     self.n_positive,
+                                     auc,
+                                     self.corr_matrix)
 
-        self.assertEqual(r.shape[0], 10)
-        self.assertEqual(r.shape[1], n_samples)
-        self.assertEqual(y.size, n_samples)
+        with self.assertRaises(ValueError):
+            rng = np.random.default_rng()
+            auc = rng.uniform(size=self.m+1)
+            simulate.gaussian_scores(self.n_samples,
+                                     self.n_positive,
+                                     auc,
+                                     self.corr_matrix)
 
-        rank_set = np.arange(1, n_samples+1)
-        label_set = np.array([0,1])
+    def test_reproducibility(self):
+        scores, labels = simulate.gaussian_scores(self.n_samples,
+                                              self.n_positive,
+                                              self.auc,
+                                              self.corr_matrix,
+                                              seed=self.seed)
 
-        self.assertEqual(len(np.setdiff1d(label_set, y)), 0)
-        self.assertEqual(len(np.setdiff1d(y, label_set)), 0)
+        s_, l_ = simulate.gaussian_scores(self.n_samples,
+                                              self.n_positive,
+                                              self.auc,
+                                              self.corr_matrix,
+                                              seed=self.seed)
 
-        self.assertAlmostEqual(np.sum(y), n1_samples)
+        self.assertTrue((scores == s_).all())
+        self.assertTrue((labels == l_).all())
 
-        for r_i in r:
-            self.assertEqual(len(np.setdiff1d(rank_set, r_i)), 0)
-            self.assertEqual(len(np.setdiff1d(r_i, rank_set)), 0)
+
+    def test_sampling_differences(self):
+        scores, labels = simulate.gaussian_scores(self.n_samples,
+                                              self.n_positive,
+                                              self.auc,
+                                              self.corr_matrix,
+                                              seed=self.seed)
+
+        s_, l_ = simulate.gaussian_scores(self.n_samples,
+                                              self.n_positive,
+                                              self.auc,
+                                              self.corr_matrix,
+                                              seed=self.seed+1)
+
+        self.assertFalse((scores == s_).all())
+        self.assertFalse((labels == l_).all())
+
+    def test_labels(self):
+        scores, labels = simulate.gaussian_scores(self.n_samples,
+                                              self.n_positive,
+                                              self.auc,
+                                              self.corr_matrix)
+
+        l_ = np.array([0,1])
+        self.assertEqual(np.setdiff1d(labels, l_).size, 0)
+        self.assertEqual(np.setdiff1d(l_, labels).size, 0)
+    
+
+class TestRankScores(TestCase):
+    n_samples = 100
+    n_positive = 25
+    auc = np.array([0.1, 0.6, 0.7])
+    m = auc.size
+    corr_matrix = np.eye(m)
+    seed=42
+
+    def test_reproducibility(self):
+        ranks, labels = simulate.rank_scores(self.n_samples,
+                                             self.n_positive,
+                                             self.auc,
+                                             self.corr_matrix,
+                                             seed=self.seed)
+
+        r_, l_ = simulate.rank_scores(self.n_samples,
+                                      self.n_positive,
+                                      self.auc,
+                                      self.corr_matrix,
+                                      seed=self.seed)
+
+        self.assertTrue((ranks == r_).all())
+        self.assertTrue((labels == l_).all())
+
+
+    def test_ranks(self):
+        ranks, labels = simulate.rank_scores(self.n_samples,
+                                             self.n_positive,
+                                             self.auc,
+                                             self.corr_matrix,
+                                             seed=self.seed)
+
+        l_ = np.array([0,1])
+        self.assertEqual(np.setdiff1d(labels, l_).size, 0)
+        self.assertEqual(np.setdiff1d(l_, labels).size, 0)
+
+        r_ = np.arange(1, self.n_samples+1)
+        for j in range(self.m):
+            self.assertEqual(np.setdiff1d(ranks,r_).size, 0)
+            self.assertEqual(np.setdiff1d(r_, ranks).size, 0)
+
+
 
 
 if __name__ == "__main__": 
