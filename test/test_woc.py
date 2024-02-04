@@ -14,6 +14,10 @@ class TestWoc(TestCase):
     auc = rng.uniform(size=m_classifiers)
     corr_matrix = np.eye(m_classifiers)
 
+    def test_inheritance(self):
+        cl = cls.Woc()
+        self.assertTrue(isinstance(cl, cls.MocaABC))
+
     def test_fit(self):
         data, labels = sim.rank_scores(self.n_samples,
                                        self.n_pos,

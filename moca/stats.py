@@ -74,7 +74,8 @@ def third_central_moment(data):
     m, n = data.shape
 
     if m > n:
-        warnings.warn("The number of dimensions exceeds number of samples.",
+        warnings.warn(("The number of dimensions exceeds"
+                       " number of samples."),
                         UserWarning)
 
     norm_constant = n / ((n-1) * (n-2))
@@ -134,8 +135,8 @@ def moca_cov(data, labels):
     """Sum of class conditioned variances or cov matrices."""
 
     s = np.sum(labels)
-    if s == 0 or s == labels.size:
-        raise ValueError("Samples from only one class are observed.")
+    if s <= 2 or s >= labels.size-2:
+        raise ValueError("Insufficient samples from each class.")
 
     if data.ndim == 1:
         return (np.var(data[labels == 0]) + 
