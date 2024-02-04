@@ -18,20 +18,10 @@ import numpy as np
 from . import stats
 from . import cross_validate as cv
 
-from summa import Summa
+from summa.classifiers import Summa
 
 class MocaABC:
-    """Moca abstract base class.
-    
-    Methods:
-        name
-        get_scores
-        get_inference
-
-    Abstract methods:
-        fit : accepts data, and label arguments, while set
-            class attributes M, weights, and prevalence.
-    """
+    """Moca abstract base class."""
     def __init__(self):
         self.prevalence = None
         self.weights = None
@@ -62,12 +52,13 @@ class MocaABC:
                               " np.ndarray (ndim = 2), input data"
                               f" dim = {data.ndim}"))
 
+        if not stats.is_rank(data):
+            raise ValueError("Input data must be sample rank")
+
         if data.shape[0] != self.M:
             raise ValueError(("Input sample does not consist of"
                               f" predictions by {self.M}"
                               " methods"))
-
-        stats.is_rank(data)
 
         s = np.zeros(data.shape[1])
         c = 0
@@ -103,7 +94,7 @@ class MocaABC:
         # the positive class, high moca score, will be sorted to 
         # low values making subsequent indexing easier.
         idx = np.argsort(-self.get_scores(data))
-        idx_thresh = np.int(self.prevalence * N)
+        idx_thresh = np.int32(self.prevalence * N)
         
         if idx_thresh == 0:
             raise ValueError(("No samples predicted to be in"
@@ -241,13 +232,15 @@ class Smoca(MocaABC):
     """Supervised moca.
     
     Args:
-        subset_select: ("greedy" or None) how to perform subset selection
-            (default "greedy")
-        subset_select_par: (None or int) if None determine optimal number of
-            base classifiers by cross validation, otherwise use the specified
+        subset_select: ("greedy" or None)
+            how to perform subset selection, default "greedy"
+        subset_select_par: (None or int)
+            if None determine optimal number of base classifiers
+            by cross validation, otherwise use the specified
             number (default None).
     """
-    def __init__(self, subset_select="greedy", subset_select_par = None):
+    def __init__(self, subset_select="greedy",
+                 subset_select_par = None):
         super().__init__()
 
         if subset_select == "greedy" or subset_select is None:
@@ -303,8 +296,10 @@ class Smoca(MocaABC):
             # compute mean snr
             sub_snr_m[m] = sub_snr_m[m] / kfolds
 
-            # compute sem: 1) computing unbiased variance, 2) square root
-            sub_snr_s[m] = (sub_snr_s[m] - kfolds*sub_snr_m[m]**2) / (kfolds-1)
+            # compute sem: 1) computing unbiased variance,
+            #               2) square root
+            sub_snr_s[m] = ((sub_snr_s[m] - kfolds*sub_snr_m[m]**2)
+                            / (kfolds-1))
             sub_snr_s[m] = np.sqrt(sub_snr_s[m] / kfolds)
 
 
@@ -351,10 +346,11 @@ class Smoca(MocaABC):
 
         stats_mgr = GreedySearchMocaStatsManager(data, labels)
 
-        # Initialize by selecting b.c. with highest delta, which in effect
-        # selects the method with the highest SNR.  To see this recall
-        # that SNR is monotonic with AUC, and that by Ahsen, Vogel, and
-        # Stolovitzky, JMLR 2019 that AUC = delta / N + 1/2.
+        # Initialize by selecting b.c. with highest delta, which
+        # in effect selects the method with the highest SNR.  To
+        # see this recall that SNR is monotonic with AUC, and
+        # that by Ahsen, Vogel, and Stolovitzky, JMLR 2019 that
+        # AUC = delta / N + 1/2.
 
         best_idx, best_performance = -1, -1
 
@@ -384,10 +380,10 @@ class Smoca(MocaABC):
 
                 tmp_sq_snr = stats_mgr.sq_snr(tmp_idx)
 
-                # ensemble snr = \sqrt{\Delta C^{-1} \Delta}, as the 
-                # \sqrt{x} monotonically increases with x, the square
-                # root is not necessary for finding the optimal snr
-
+                # ensemble snr = \sqrt{\Delta C^{-1} \Delta}, as
+                # the \sqrt{x} monotonically increases with x,
+                # the square root is not necessary for finding
+                # the optimal snr
 
                 if  tmp_sq_snr > best_performance:
                     best_performance = tmp_sq_snr
@@ -434,28 +430,36 @@ class Umoca(MocaABC):
         self._max_iter = max_iter
 
     @staticmethod
-    def _infer_alpha(T, cov_eig_val, cov_eig_vec, tensor_singular_value):
+    def _infer_alpha(T,
+                     cov_eig_val, cov_eig_vec,
+                     tensor_singular_value):
         """Compute alpha by minimizing the sum squared errors.
         
-        According to moca theory, the elements ijj (i\neq j) of the 
-        M x M x M third central moment tensor (T) of rank predictions by 
-        M conditionally independent binary classifiers is
+        According to moca theory, the elements ijj (i\neq j) of
+        the M x M x M third central moment tensor (T) of rank
+        predictions by M conditionally independent binary
+        classifiers is
         
         T_ijj = p (1-p) D_i d_j + p (1-p) (2p - 1) D_iD_j^2
 
         with:
-            * p being the prevalence of the positive class samples, 
-            * D_i the difference in the class conditioned average ranks 
-                (D_i = E[R_i | Y=0] - E[R_i | Y=1]) of the i^{th} base 
-                classifier [Ref. 1]
-            * d_j is difference of the class conditioned variances,
-                Var(R_j|Y=0) - Var(R_j|Y=1) of the j^{th} base classifier.
+            * p being the prevalence of the positive class
+                samples, 
+            * D_i the difference in the class conditioned
+                average ranks 
+                (D_i = E[R_i | Y=0] - E[R_i | Y=1])
+                of the i^{th} base classifier [Ref. 1]
+            * d_j is difference of the class conditioned
+                variances,
+                Var(R_j|Y=0) - Var(R_j|Y=1)
+                of the j^{th} base classifier.
 
         From this formula, we are interested in inferring 
 
         \alpha_j = d_j / ||D||
 
-        using the equation above and SUMMA [Ref. 1] inferred values
+        using the equation above and SUMMA [Ref. 1] inferred
+        values
         
         tensor_singular_value = p (1-p) (2p-1) ||D||^3
         cov_eig_val = p (1-p) ||D||^2
@@ -466,12 +470,13 @@ class Umoca(MocaABC):
 
         T_ijj - p (1-p) (2p-1) D_iD_j^2 = p (1-p) D_i
 
-        Remembering that for each j their are M-1 values of i that satisfy
-        i \neq j.  We then call the LHS of the above equation the i^{th} 
-        value of M-1 length vector Y_j,
+        Remembering that for each j their are M-1 values of i
+        that satisfy i \neq j.  We then call the LHS of the
+        above equation the i^{th} value of M-1 length vector Y_j,
 
         Y_{ij} = T_{ijj} - 
-                tensor_singular_value * cov_eig_vec[i] cov_eig_vec[j]**2
+                tensor_singular_value * cov_eig_vec[i]
+                    * cov_eig_vec[j]**2
 
         and RHS the i^{th} value of M-1 length vector X
 
@@ -481,10 +486,11 @@ class Umoca(MocaABC):
 
         Y_j = X \alpha_j
 
-        We infer \alpha_j for each j in {1,2,...,M} by minimizing the
-        sum squared residuals
+        We infer \alpha_j for each j in {1,2,...,M} by minimizing
+        the sum squared residuals
 
-        \hat{\alpha_j} = argmin \sum_{i\neq j} (Y_{ij} - X_i \alpha_j)^2
+        \hat{\alpha_j} = argmin 
+                \sum_{i\neq j} (Y_{ij} - X_i \alpha_j)^2
 
         resulting in
 
@@ -504,7 +510,8 @@ class Umoca(MocaABC):
             alpha: ((M,) np.ndarray)
 
         References:
-            Ahsen, Vogel, and Stolovitzky J. Mach. Learn. Res. 2019
+            [1] Ahsen, Vogel, and Stolovitzky J. Mach.
+                Learn. Res. 2019
         """
         M = cov_eig_vec.size
 
@@ -529,9 +536,11 @@ class Umoca(MocaABC):
         return alpha
 
     @staticmethod
-    def _infer_sum_class_conditional_variance(cov_eig_value, cov_eig_vector, 
-                                        tensor_singular_value, alpha,
-                                        n_samples):
+    def _infer_sum_class_conditional_variance(cov_eig_value,
+                                            cov_eig_vector, 
+                                            tensor_singular_value,
+                                            alpha,
+                                            n_samples):
         """Infer the sum of class conditional variances from Summa inference.
         
         Let the sum of class conditioned variances of rank predictions (R) by 
