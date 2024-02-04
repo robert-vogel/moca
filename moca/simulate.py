@@ -179,8 +179,6 @@ def rank_scores(n_samples, n_pos, auc, corr_matrix, seed=None):
             number of samples to draw
         n_pos: (int)
             number of samples from the positive class
-        prevalence: (float)
-            fraction of samples from the positive class
         auc: ((M classifiers,) np.ndarray)
             array of base classifier AUC
         corr_matrix: ((M classifier, M classifier) np.ndarray)

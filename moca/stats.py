@@ -276,9 +276,10 @@ def is_rank(X):
     """Test whether data are sample rank.
 
     Args:
-        X : 1-d or 2-d ndarray of rank values.  If 2-d
-            array, then we assume that the M samples are independently
-            ranked across rows.  ((N, ) or (M, N) ndarray)
+        X: ((N,) or (M,N) np.ndarray)
+            1-d or 2-d ndarray of rank values.  If 2-d
+            array, then we assume that the M samples are
+            independently ranked across rows.
             
     Returns:
         bool
