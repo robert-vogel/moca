@@ -332,7 +332,8 @@ class Smoca(MocaABC):
                 opt_m_subset = m
                 best_snr = sub_snr_m[m]
 
-        # enforce parsimony as described in Elements of Statistical Learning
+        # enforce parsimony as described in
+        # Elements of Statistical Learning
         snr_threshold = best_snr - sub_snr_s[opt_m_subset]
 
         for m in subset_sizes:

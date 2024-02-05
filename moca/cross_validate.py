@@ -86,8 +86,8 @@ def stratified_kfold(data, labels,
 
     for k_idxs_by_label in zip(*split_by_label):
 
-        train_idx = np.array([], dtype=np.int)
-        test_idx = np.array([], dtype=np.int)
+        train_idx = np.array([], dtype=np.int64)
+        test_idx = np.array([], dtype=np.int64)
 
         for i, label_idx in enumerate(k_idxs_by_label):
             train_idx = np.hstack([train_idx, 
