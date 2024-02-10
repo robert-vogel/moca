@@ -13,6 +13,7 @@ We can run the script from the command line by:
 python demonstrate_subset_selection.py \
     --auc 0.52 0.95 \
     --m_classifiers 15 \
+    --seed 42 \
     sim_results
 ```
 
