@@ -38,23 +38,23 @@ such that
 
 (mean SNR) + (S.E.M) >= threshold
 
-![snr](sim_results/snr.pdf)
+![snr](sim_results/snr.png)
 
 Now that we see that the ensemble selection is working
 as designed, we plot a more common measure of performance AUC.
 
-![auc](sim_results/auc.pdf)
+![auc](sim_results/auc.png)
 
 and we see that the AUC and SNR are similar measures
 of performance
 
-![snrAUC](sim_results/snr_auc.pdf)
+![snrAUC](sim_results/snr_auc.png)
 
 Lastly, we plot the conditional correlation matrix used 
 for simulating the scores of samples from the respective
 classes
 
-![corr](sim_results/corr_matrix.pdf)
+![corr](sim_results/corr_matrix.png)
 
 
 
