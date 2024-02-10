@@ -17,6 +17,7 @@ import warnings
 import numbers
 import numpy as np
 from scipy.stats import rankdata
+from scipy.special import ndtri
 
 def mean_rank(N):
     """Compute the mean of N sample ranks on interval [1,N]"""
@@ -73,7 +74,8 @@ def third_central_moment(data):
     m, n = data.shape
 
     if m > n:
-        warnings.warn("The number of dimensions exceeds number of samples.",
+        warnings.warn(("The number of dimensions exceeds"
+                       " number of samples."),
                         UserWarning)
 
     norm_constant = n / ((n-1) * (n-2))
@@ -133,8 +135,8 @@ def moca_cov(data, labels):
     """Sum of class conditioned variances or cov matrices."""
 
     s = np.sum(labels)
-    if s == 0 or s == labels.size:
-        raise ValueError("Samples from only one class are observed.")
+    if s <= 2 or s >= labels.size-2:
+        raise ValueError("Insufficient samples from each class.")
 
     if data.ndim == 1:
         return (np.var(data[labels == 0]) + 
@@ -275,9 +277,10 @@ def is_rank(X):
     """Test whether data are sample rank.
 
     Args:
-        X : 1-d or 2-d ndarray of rank values.  If 2-d
-            array, then we assume that the M samples are independently
-            ranked across rows.  ((N, ) or (M, N) ndarray)
+        X: ((N,) or (M,N) np.ndarray)
+            1-d or 2-d ndarray of rank values.  If 2-d
+            array, then we assume that the M samples are
+            independently ranked across rows.
             
     Returns:
         bool
@@ -298,4 +301,49 @@ def is_rank(X):
         raise ValueError("Data must be a 1-d or 2-d ndarray.")
 
 
+def is_auc(auc):
+    """Is the float or iterable auc value(s).
 
+    Returns:
+        (bool)
+    """
+    if isinstance(auc, numbers.Number):
+        return auc >= 0 and auc <= 1
+
+    valid_auc = False
+
+    for val in auc:
+        if isinstance(val, numbers.Number):
+            valid_auc = (val >= 0 and val <= 1)
+
+        if not valid_auc:
+            return False
+
+    return True
+
+
+def is_prevalence(prevalence):
+    """Check prevalence value.
+
+    Returns:
+        (bool)
+    """
+    if isinstance(prevalence, numbers.Number):
+        return prevalence < 1 and prevalence > 0
+
+    return False
+
+def auc_to_delta(auc, positive_var, negative_var):
+    """Auc to the difference in class conditioned rank.
+
+    \Delta_i = \sqrt{cov_i|positive_class + cov_i|negative_class}
+                * inv_standard_normal_cumulative(auc_i)
+
+    Reference:
+        Marzben, C. "The ROC Curve and the Area under It
+        as Performance Measures", Weather and Forecasting 2004.
+    """
+    if not is_auc(auc):
+        raise ValueError("Not valid AUC value.")
+
+    return np.sqrt(positive_var + negative_var) * ndtri(auc)

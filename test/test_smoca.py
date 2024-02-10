@@ -3,73 +3,119 @@ from unittest import TestCase, main
 
 import numpy as np
 
-# from pySUMMA.simulate import Rank
-from moca import Smoca
-from moca import moca
+from moca import classifiers as cls
+from moca import simulate as sim
+from moca import stats
 
 
 class TestSmoca(TestCase):
+    rng = np.random.default_rng()
+
     def setUp(self):
-        self.Nsamples = 1000
-        self.Npositive = 300
-        self.Mmodels = 10
+        self.n_samples = 1000
+        self.n_pos = 300
+        self.m_classifiers = 10
+        self.auc = self.rng.uniform(size=self.m_classifiers)
+        self.corr_matrix = sim.make_corr_matrix(self.m_classifiers,
+                                                independent=True,
+                                                seed=self.rng)
 
-        sim = Rank(self.Mmodels,
-                    self.Nsamples,
-                    self.Npositive)
-        sim.sim()
+        self.data, self.labels = sim.rank_scores(self.n_samples,
+                                        self.n_pos,
+                                        self.auc,
+                                        self.corr_matrix,
+                                        seed=self.rng)
 
-        self.data, self.labels = sim.data, sim.labels
+    def test_inheritance(self):
+        cl = cls.Smoca()
+        self.assertTrue(isinstance(cl, cls.MocaABC))
 
     def test_default_init(self):
-        smoca = Smoca()
+        cl = cls.Smoca()
 
-        self.assertIsNone(smoca.subset_select)
-        self.assertIsNone(smoca.subset_select_par)
-        self.assertEqual(smoca._compute_weights, smoca._compute_default_weights)
-
-        self.assertEqual(smoca.name, "Smoca")
-        self.assertIsNone(smoca.prevalence)
-        self.assertIsNone(smoca.weights)
-
-    def test_subset_init(self):
-        smoca = Smoca(subset_select = "greedy")
-        
-        self.assertEqual(smoca.subset_select, "greedy")
-        self.assertIsNone(smoca.subset_select_par)
-
-        self.assertEqual(smoca._compute_weights, smoca._compute_greedy_subset_select)
+        self.assertEqual("greedy", cl.subset_select)
+        self.assertIsNone(cl.subset_select_par)
+        self.assertEqual(cl.name, "Smoca-greedy")
+        self.assertIsNone(cl.prevalence)
+        self.assertIsNone(cl.weights)
 
     def test_wrong_fit_method(self):
         with self.assertRaises(ValueError):
-            Smoca(subset_select = "l1")
+            cls.Smoca(subset_select = "l1")
+
+    def test_init(self):
+        cl = cls.Smoca(subset_select=None)
+
+        self.assertIsNone(cl.subset_select)
+        self.assertIsNone(cl.subset_select_par)
+
+        cl = cls.Smoca(subset_select=None)
+
 
     def test_no_subset_select(self):
-        pass
+        cl = cls.Smoca(subset_select=None)
 
-    def test_compute_greedy_subset_selection(self):
-        pass
+        self.assertIsNone(cl.subset_select)
+        self.assertIsNone(cl.subset_select_par)
+
+        cl.fit(self.data, self.labels)
+
+        self.assertEqual(cl.prevalence, self.n_pos/self.n_samples)
+        self.assertEqual(cl.M, self.m_classifiers)
+
+        #TODO need test for inferred weights
+
+    def test_low_rank_warning(self):
+        tmpdata = np.vstack([self.data, self.data[0,:]])
+
+        cl =cls.Smoca(subset_select=None)
+
+        with self.assertWarns(UserWarning):
+            cl.fit(tmpdata, self.labels)
+
+
+    def test_greedy_subset_selection_filter(self):
+        cl =cls.Smoca(subset_select_par=0)
+
+        with self.assertRaises(IndexError):
+            cl.fit(self.data, self.labels)
+
+    def test_greedy_subset_one(self):
+        cl = cls.Smoca(subset_select_par=1)
+        cl.fit(self.data, self.labels)
+        
+        delta_abs = np.abs(stats.delta(self.data, self.labels))
+        best_idx = np.where(delta_abs == np.max(delta_abs))[0]
+        
+        for i in range(cl.M):
+            if i != best_idx:
+                self.assertEqual(cl.weights[i], 0)
+                continue
+
+            self.assertEqual(i, best_idx)
+            self.assertTrue(cl.weights[i] != 0)
+
+    def test_greedy_subset_size(self):
+
+        for i in range(1, self.m_classifiers-1):
+            cl = cls.Smoca(subset_select_par=i)
+            cl.fit(self.data, self.labels)
+
+            self.assertEqual(np.sum(cl.weights != 0), i)
+
 
     def test_find_optimal_subset(self):
         pass
 
     def test_fit(self):
-        # TODO need to make this a real test
+        pass
 
-        sim = Rank(12, 1000, 300)
-        sim.sim()
-
-        cl = Smoca(subset_select="greedy", subset_select_par=5)
-        cl.fit(sim.data, sim.labels)
-
-        cl = Smoca(subset_select="greedy")
-        cl.fit(sim.data, sim.labels)
 
 
 class TestGreedySearchIdxManager(TestCase):
     def test_init(self):
         m = 10
-        gs_idx = moca.GreedySearchIdxManager(m)
+        gs_idx = cls.GreedySearchIdxManager(m)
 
         self.assertEqual(gs_idx.m, m)
         self.assertEqual(gs_idx.found, [])
@@ -79,40 +125,43 @@ class TestGreedySearchIdxManager(TestCase):
         m = 10
 
         with self.assertRaises(ValueError):
-            moca.GreedySearchIdxManager(float(m))
+            cls.GreedySearchIdxManager(float(m))
 
         with self.assertRaises(ValueError):
-            moca.GreedySearchIdxManager(str(m))
+            cls.GreedySearchIdxManager(str(m))
 
         with self.assertRaises(ValueError):
-            moca.GreedySearchIdxManager((m, ))
+            cls.GreedySearchIdxManager((m, ))
 
         with self.assertRaises(ValueError):
-            moca.GreedySearchIdxManager([m])
+            cls.GreedySearchIdxManager([m])
  
         with self.assertRaises(ValueError):
-            moca.GreedySearchIdxManager(np.array([m]))
+            cls.GreedySearchIdxManager(np.array([m]))
 
         with self.assertRaises(ValueError):
-            moca.GreedySearchIdxManager(set((m,)))
+            cls.GreedySearchIdxManager(set((m,)))
 
     def test_ens_properties(self):
         m = 10
         n = 4
 
-        gs_idx = moca.GreedySearchIdxManager(m)
+        gs_idx = cls.GreedySearchIdxManager(m)
 
         rng = np.random.default_rng()
         ens_idx = list()
         for i in rng.choice(range(m), replace=False, size=n):
 
             # object creation by property
-            self.assertNotEqual(id(gs_idx.found), id(gs_idx._found))
-            self.assertNotEqual(id(gs_idx.complement), id(gs_idx._complement))
+            self.assertNotEqual(id(gs_idx.found),
+                                id(gs_idx._found))
+            self.assertNotEqual(id(gs_idx.complement),
+                                id(gs_idx._complement))
 
             # test created object values
             self.assertEqual(gs_idx.found, gs_idx._found)
-            self.assertEqual(gs_idx.complement, gs_idx._complement)
+            self.assertEqual(gs_idx.complement,
+                             gs_idx._complement)
 
 
             # test returned prosepective ensemble indexes
@@ -122,7 +171,7 @@ class TestGreedySearchIdxManager(TestCase):
 
     def test_update(self):
         m = 10
-        gs_idx = moca.GreedySearchIdxManager(m)
+        gs_idx = cls.GreedySearchIdxManager(m)
 
         for i in range(m):
 
@@ -139,16 +188,26 @@ class TestGreedySearchIdxManager(TestCase):
             gs_idx.update(i)
 
 
+# TODO test low rank warning
 class TestGreedyStatsManager(TestCase):
+    rng = np.random.default_rng()
+
     def setUp(self):
         self.m, self.n, self.n1 = 10, 1000, 300
-        self.auc = [1 for _ in range(self.m)]
-        sim = Rank(self.m, self.n, self.n1, auc=self.auc)
-        sim.sim()
-        self.data, self.labels = sim.data, sim.labels
+        self.auc = np.array([1 for _ in range(self.m)])
+        self.corr_matrix = sim.make_corr_matrix(self.m,
+                                                independent=True)
+
+        self.data, self.labels = sim.rank_scores(self.n,
+                                                 self.n1,
+                                                 self.auc,
+                                                 self.corr_matrix,
+                                                 seed=self.rng)
+
 
     def test_init(self):
-        mgr = moca.GreedySearchMocaStatsManager(self.data, self.labels)
+        mgr = cls.GreedySearchMocaStatsManager(self.data,
+                                               self.labels)
 
         # test delta
         for delta in mgr.delta:
@@ -163,7 +222,8 @@ class TestGreedyStatsManager(TestCase):
 
         for i in range(self.m):
             for j in range(self.m):
-                self.assertEqual(mgr.cov_matrix[i,i], mgr.cov_matrix[j,j])
+                self.assertEqual(mgr.cov_matrix[i,i],
+                                 mgr.cov_matrix[j,j])
 
         # 3) positive definite
         l, v = np.linalg.eigh(mgr.cov_matrix)
@@ -172,7 +232,8 @@ class TestGreedyStatsManager(TestCase):
         self.assertTrue(np.prod(l) > 0)
 
     def test_delta_column(self):
-        mgr = moca.GreedySearchMocaStatsManager(self.data, self.labels)
+        mgr = cls.GreedySearchMocaStatsManager(self.data,
+                                               self.labels)
 
         # check indeed a column vector with expected entries
         # when no subset specified
@@ -190,19 +251,23 @@ class TestGreedyStatsManager(TestCase):
 
         for m_subset in m_subsets:
             for _ in range(20):
-                idx = rng.choice(range(self.m), replace=False, size=m_subset)
+                idx = rng.choice(range(self.m),
+                                 replace=False, size=m_subset)
     
                 delta_column = mgr.delta_column_vector(idx)
                 
                 # ensure column vector
-                self.assertEqual(delta_column.shape, (m_subset, 1))
+                self.assertEqual(delta_column.shape,
+                                 (m_subset, 1))
     
                 # ensure equal values
                 for i, j in enumerate(idx):
-                    self.assertEqual(delta_column[i, 0], mgr.delta[j])
+                    self.assertEqual(delta_column[i, 0],
+                                     mgr.delta[j])
 
     def test_delta_column_vector_wrong_input(self):
-        mgr = moca.GreedySearchMocaStatsManager(self.data, self.labels)
+        mgr = cls.GreedySearchMocaStatsManager(self.data,
+                                               self.labels)
 
         with self.assertRaises(ValueError):
             mgr.delta_column_vector(list())

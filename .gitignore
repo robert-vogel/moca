@@ -1,8 +1,8 @@
-.DS_Store
+*.DS_Store
 *~
 *.swp
 */figs/
-*/sim_*/
 */log/
 *.egg-info/
+*.pdf
 *__pycache__/

@@ -51,7 +51,7 @@ def kfold(data, labels, kfolds, ascending=False, seed=None):
 
 def stratified_kfold(data, labels,
         kfolds, ascending=False, seed=None):
-    """Stratified K fold cross validation that returns rank values.
+    """Stratified K fold CV returns rank values.
     
     Args:
         data: ((M methods, N samples) np.ndarray) of data
@@ -60,7 +60,7 @@ def stratified_kfold(data, labels,
         ascending: (bool)
         seed: arguments of rng.default_rng
     """
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed=seed)
 
     idx=np.arange(labels.size)
 
@@ -75,16 +75,19 @@ def stratified_kfold(data, labels,
 
     label_counts = [len(w) for w in idx_by_label]
     # train / test index generators for each class label
-    split_by_label = [sample_idx(label_counts[0], kfolds, seed=rng),
-                        sample_idx(label_counts[1], kfolds, 
-                            reverse_order=True, seed=rng)]
+    split_by_label = [sample_idx(label_counts[0],kfolds,seed=rng),
+                      sample_idx(label_counts[1], kfolds, 
+                                 reverse_order=True,
+                                 seed=rng)]
     
-    # recall that each sample_idx returns a generator.  each evaluation
-    # of the generator produces tuple (training data idxs, testing data idxs)
+    # recall that each sample_idx returns a generator.
+    # each evaluation of the generator produces tuple
+    # (training data idxs, testing data idxs)
 
     for k_idxs_by_label in zip(*split_by_label):
 
-        train_idx, test_idx = np.array([], dtype=np.int), np.array([], dtype=np.int)
+        train_idx = np.array([], dtype=np.int64)
+        test_idx = np.array([], dtype=np.int64)
 
         for i, label_idx in enumerate(k_idxs_by_label):
             train_idx = np.hstack([train_idx, 
@@ -106,7 +109,10 @@ def stratified_kfold(data, labels,
                 })
 
 
-def sample_idx(N, kfolds, reverse_order=False, shuffle=True, seed=None):
+def sample_idx(N, kfolds,
+               reverse_order=False,
+               shuffle=True,
+               seed=None):
     """Get the indexes of n fold cross validation.
 
     Args:
@@ -159,5 +165,3 @@ def sample_idx(N, kfolds, reverse_order=False, shuffle=True, seed=None):
 
         yield (np.hstack([idx[0:j_start], idx[j_end:]]),
                 idx[j_start:j_end])
-
-
