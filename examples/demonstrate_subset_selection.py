@@ -1,26 +1,51 @@
-#!/usr/bin/env python
-"""Show ensemble selection by simulation
+"""Demonstrate ensemble selection by simulation
+
+By: Robert Vogel
 
 
+Peform k fold cross-validation and greedy ensemble 
+selection plot the mean and S.E.M. of SNR and AUC metrics.
+Overlay on the plot the threshold SNR used for determining
+the optimal number of base classifiers,
+
+threshold = max(SNR) - S.E.M.
+
+Using the same seed, run the Smoca greedy selection 
+classifier, and plot the optimal number of base classifiers.
+In the SNR plot, the optimal number of base classifiers 
+should be the smallest number, m, such that
+
+SNR_m + S.E.M._m >= threshold
+
+Simulation parameters and other plots are printed to the
+destination directory.
 """
 
 _epilog = """
-Examples:
-    Simulate 20 base classifiers with AUC values evenly distributed
-    between [0.55, 0.65].  Moreover classifiers 1-5, 6-15, and 16-20
-    are conditionally dependent with conditional correlations 0.3,
-    0.1, and 0.8.  Lastly, print results to `sim_results` directory.
+Example:
+    Simulate 15 conditionally dependent base classifiers
+    with AUC values randomly distributed on interval
+    [0.55, 0.65).  Print results to `sim_results` directory.
 
-    python -m demostrate_subset_selection.py \
-            --auc 0.55 0.65 \
-            --m_classifiers 20 \
-            --group_sizes 5 10 5 \
-            --group_corrs 0.3 0.1 0.8 -- \
+    python demostrate_subset_selection.py \\
+            --auc 0.55 0.65 \\
+            --m_classifiers 15 \\
+           sim_results
+
+
+    Perform similar simulation of conditionally *independent*
+    base classifiers.
+
+    python demostrate_subset_selection.py \\
+            --auc 0.55 0.65 \\
+            --cond_ind \\
+            --m_classifiers 15 \\
            sim_results
 """
 
 import os
 import sys
+import secrets
 import argparse
 import json
 
@@ -29,10 +54,9 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 
-from moca import Smoca, simulate, stats
+from moca.classifiers import Smoca
+from moca import simulate, stats
 from moca import cross_validate as cv
-
-SEED_MAX = 592355334
 
 
 FONTSIZE = 15
@@ -40,22 +64,56 @@ FIGSIZE = (4, 3.75)
 AX_POSITION = (0.2, 0.2, 0.75, 0.65)
 MAT_AX_POSITION = (0.1, 0.175, 0.65, 0.55)
 
+
 def sem(data, axis=0):
     return np.std(data, axis=0) / np.sqrt(data.shape[0])
+
 
 def args_to_json(args, savename):
 
     with open(savename, "w") as fid:
         json.dump(args.__dict__, fid, indent = 4)
 
+
+def plot_errorbars(x, y, xerr=None, yerr=None, 
+        label=None, xlabel=None, ylabel=None):
+
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+
+    ax.errorbar(x, y, 
+                xerr=xerr,
+                yerr=yerr,
+                fmt="-o",
+                ms = 7,
+                color = "black",
+                linewidth=1,
+                capsize=2.5,
+                capthick=1,
+                mfc="none",
+                label=label)
+
+    ax.set_xlabel(xlabel, fontsize=FONTSIZE)
+    ax.set_ylabel(ylabel, fontsize=FONTSIZE)
+    ax.set_position(AX_POSITION)
+
+    return fig, ax
+
+
 def _parse_args(args):
-    parser = argparse.ArgumentParser(description = __doc__)
+    parser = argparse.ArgumentParser(description = __doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_epilog)
     
     parser.add_argument("--auc", 
             dest = "auc",
             type = float,
-            nargs = "*",
-            default = [0.55, 0.6, 0.65, 0.7, 0.75])
+            nargs = 2,
+            default = (0.7, 0.95))
+    parser.add_argument("--cond_ind",
+            dest = "cond_ind",
+            action="store_true",
+            help=("Are base classifier predictions"
+                  " conditionally independent (default False)"))
     parser.add_argument("--seed", 
             dest = "seed",
             type = int,
@@ -64,26 +122,16 @@ def _parse_args(args):
             dest = "m_classifiers",
             type = int,
             default = None)
-    parser.add_argument("--cv",
-            dest = "cv",
+    parser.add_argument("--cv_kfolds",
+            dest = "cv_kfolds",
             type = int,
             default = 10)
-    parser.add_argument("--group_sizes",
-            dest = "group_sizes",
-            type = int,
-            nargs = "*",
-            default = None)
-    parser.add_argument("--group_corrs",
-            dest = "group_corrs",
-            type = float,
-            nargs = "*",
-            default = None)
     parser.add_argument("--n_samples",
             dest = "n_samples",
             type = int,
             default = 1000)
-    parser.add_argument("--n_positives",
-            dest = "n_positives",
+    parser.add_argument("--n_pos",
+            dest = "n_pos",
             type = int,
             default = 300)
     parser.add_argument("dest",
@@ -102,14 +150,15 @@ def plot_bc_corr_matrix(corr_matrix, auc, savename):
     fig.colorbar(matax)
 
     ax.set_xticks([i for i in range(len(auc))])
-    ax.set_xticklabels([f"{auc_i:0.2f}" for auc_i in auc], rotation=90)
+    ax.set_xticklabels([f"{auc_i:0.2f}" for auc_i in auc],
+                       rotation=90)
 
     ax.set_yticks([i for i in range(len(auc))])
     ax.set_yticklabels([f"{auc_i:0.2f}" for auc_i in auc])
 
     ax.set_xlabel("B.C. AUC", fontsize=FONTSIZE)
     ax.set_ylabel("B.C. AUC", fontsize=FONTSIZE)
-    ax.set_title(r"Mean $(C_0 + C_1) / 2$", fontsize=FONTSIZE)
+    ax.set_title(r"$C_Y$", fontsize=FONTSIZE)
     ax.set_position(MAT_AX_POSITION)
 
     fig.savefig(savename)
@@ -118,38 +167,43 @@ def plot_bc_corr_matrix(corr_matrix, auc, savename):
 def main():
     args = _parse_args(sys.argv[1:])
 
-    print(args)
-
-    if args.seed is None:
-        args.seed = np.random.choice(SEED_MAX)
-
     if not os.path.exists(args.dest):
         os.mkdir(args.dest)
 
+    if args.seed is None:
+        args.seed = secrets.randbits(128)
+
+    rng = np.random.default_rng(seed=args.seed)
+
+    args.auc = rng.uniform(low=args.auc[0],
+                           high=args.auc[1],
+                           size=args.m_classifiers).tolist()
+
     args_to_json(args, os.path.join(args.dest, "sim_pars.json"))
 
-    g = simulate.EnsembleRankPredictions(auc=args.auc,
-                                        m_classifiers = args.m_classifiers,
-                                        group_corrs = args.group_corrs,
-                                        group_sizes = args.group_sizes)
-
-    data, labels = g.sample(args.n_samples, args.n_positives)
+    args.auc = np.array(args.auc)
 
 
-    scl_opt = Smoca(subset_select= "greedy", 
-                    seed=args.seed)
+    corr_matrix = simulate.make_corr_matrix(args.m_classifiers,
+                                independent=args.cond_ind,
+                                seed=rng)
 
-    scl_opt.fit(data, labels)
+    data, labels = simulate.rank_scores(args.n_samples,
+                                        args.n_pos,
+                                        args.auc,
+                                        corr_matrix,
+                                        seed=rng)
 
-    plot_bc_corr_matrix(0.5 * (np.corrcoef(data[:, labels == 0]) +
-                                np.corrcoef(data[:, labels == 1])),
-                        g.auc,
+    plot_bc_corr_matrix(corr_matrix,
+                        args.auc,
                         os.path.join(args.dest,"corr_matrix.pdf"))
 
+    scl_opt = Smoca(subset_select= "greedy")
+    scl_opt.fit(data, labels, seed=args.seed)
 
-    # test_data, test_labels = g.sample(args.n_samples, args.n_positives)
+    # test_data, test_labels = g.sample(args.n_samples, args.n_pos)
         
-    subset_par = np.arange(1, len(g.auc) + 1)
+    subset_par = np.arange(1, args.m_classifiers + 1)
     auc = {
             "mean": np.zeros(len(subset_par)),
             "sem":np.zeros(len(subset_par))
@@ -159,29 +213,36 @@ def main():
             "mean": np.zeros(len(subset_par)),
             "sem":np.zeros(len(subset_par))
             }
+
+
+    # Generator for cross validation below
     rng = np.random.default_rng(seed=args.seed)
 
     for i, m in enumerate(subset_par):
 
-        tmp_auc = np.zeros(args.cv)
-        tmp_snr = np.zeros(args.cv)
+        tmp_auc = np.zeros(args.cv_kfolds)
+        tmp_snr = np.zeros(args.cv_kfolds)
 
-        cv_generator = cv.cv_sample_data(data,
+        cv_generator = cv.stratified_kfold(data,
                                 labels,
-                                args.cv, 
+                                args.cv_kfolds, 
                                 ascending=True,
                                 seed=rng)
 
-        for n, (train, test) in enumerate(cv_generator):
+        n = 0
+        for train, test in cv_generator:
 
-            scl = Smoca(subset_select = "greedy", subset_select_par = m)
+            scl = Smoca(subset_select = "greedy",
+                        subset_select_par = m)
             scl.fit(train["data"], train["labels"])
 
             s = scl.get_scores(test["data"])
 
             tmp_auc[n] = stats.roc(s,
                                    test["labels"])[2]
-            tmp_snr[n] = -stats.snr(s, test["labels"])
+            tmp_snr[n] = stats.snr(-s, test["labels"])
+
+            n += 1
             
 
         auc["mean"][i] = np.mean(tmp_auc)
@@ -190,77 +251,59 @@ def main():
         snr["sem"][i] = sem(tmp_snr)
 
 
-    m_opt_roc = None
-    best_auc = 0
-
-    for i, auc_val in enumerate(auc["mean"]):
-        if auc_val > best_auc:
-            best_auc = auc_val
-            m_opt_roc = i + 1
-
-    best_snr = 0
-    m_opt_snr = None
-    for i, snr_val in enumerate(snr["mean"]):
-        if snr_val > best_snr:
-            best_snr = snr_val
-            m_opt_snr = i + 1
-
-
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-    ax.errorbar(snr["mean"],
-                auc["mean"],
-                xerr = snr["sem"],
-                yerr = auc["sem"],
-                fmt="o",
-                ms = 7,
-                color = "black",
-                linewidth=1,
-                capsize=2.5,
-                capthick=1,
-                mfc="none")
-    ax.set_xlabel("SNR", fontsize=FONTSIZE)
-    ax.set_ylabel("AUC", fontsize=FONTSIZE)
-
-    ax.set_position(AX_POSITION)
-    fig.savefig(os.path.join(args.dest, "snr_v_auc.pdf"))
-
-
-    fig, ax = plt.subplots(figsize=FIGSIZE)
-
-    ax.errorbar(subset_par,
-                auc["mean"],
-                yerr = auc["sem"],
-                fmt="-o",
-                ms = 7,
-                color = "black",
-                linewidth=1,
-                capsize=2.5,
-                capthick=1,
-                mfc="none",
-                label="Test Set AUC")
-    ax.axhline(best_auc, 
+    fig, ax = plot_errorbars(subset_par, auc["mean"], 
+                            yerr=auc["sem"],
+                            label = "Test Set AUC",
+                            xlabel = r"$m$ nonzero weights",
+                            ylabel = "AUC")
+    ax.axvline(scl_opt.subset_select_par, 
                 linestyle=":",
-                color = cm.tab10(0),
-                label=r"AUC$_{max}$")
+                linewidth=1,
+                color="black",
+                label=r"$m_{opt}$")
+    ax.legend(loc = 0)
 
-    ax.axvline(m_opt_roc, 
-                linestyle=":",
-                color = cm.tab10(0),
-                label=r"$m_{opt}$(AUC)")
+    fig.savefig(os.path.join(args.dest, "auc.pdf"))
+
+
+    fig, ax = plot_errorbars(subset_par, snr["mean"], 
+                            yerr = snr["sem"],
+                            label = "Test Set SNR",
+                            xlabel = r"$m$ nonzero weights",
+                            ylabel = "SNR")
+
+    # here I want to plot the threshold in which 
+    # the subselect par is determined.  
+    thresh = np.max(snr["mean"])
+    thresh_idx = np.where(snr["mean"] == thresh)[0]
+    thresh -= snr["sem"][thresh_idx]
 
     ax.axvline(scl_opt.subset_select_par, 
                 linestyle=":",
                 linewidth=1,
                 color="black",
-                label=r"$m_{opt}(SNR)$")
+                label=r"Smoca $m_{opt}$")
 
-    ax.set_xlabel(r"$m$ nonzero weights", fontsize=FONTSIZE)
-    ax.set_ylabel("AUC", fontsize=FONTSIZE)
-    ax.set_position(AX_POSITION)
-    ax.legend(loc=0)
-    # ax.set_title(f"Cond. Correlation = {args.corr_value}", fontsize=FONTSIZE)
+    ax.axhline(thresh,
+                linestyle=":",
+                linewidth=1,
+                color="black",
+                label=r"Threshold <SNR>+S.E.M.")
 
-    fig.savefig(os.path.join(args.dest, "auc.pdf"))
+    ax.legend(loc = 0)
+
+    fig.savefig(os.path.join(args.dest, "snr.pdf"))
+
+    fig, ax = plot_errorbars(snr["mean"], auc["mean"],
+                            xerr = snr["sem"],
+                            yerr = auc["sem"],
+                            xlabel = "SNR",
+                            ylabel = "AUC")
+    fig.savefig(os.path.join(args.dest, "snr_auc.pdf"))
+
+
+
+
 
 
 if __name__ == "__main__":

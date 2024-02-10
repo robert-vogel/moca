@@ -14,11 +14,39 @@ MOCA has been validated with the following dependencies:
 - matplotlib (==3.8.0)
 - summa (==1.0.0)
 
-The enumerated versions are those in which we tested the software.  It is likely that MOCA will work with other versions as well.
-
 
 Installation
 ------------
+
+Assuming that Python 3.10 is installed on your system, we'll
+start by setting up a virtual environment named `env` and activating
+
+```
+python3.10 -m venv env
+source env/bin/activate
+```
+
+The prompt on the terminal should update after activation so
+that it is prefaced with `(env)`.  If not a mistake has occured.
+
+```
+python -m pip install --upgrade pip
+```
+
+Now install the `summa` package from the `pySUMMA` GitHub
+repository.  If the dependencies `numpy`, `scipy`, and `matplotlib`
+are not already installed, they will automatically be installed 
+with `summa`
+
+```
+python -m pip install git+https://github.com/robert-vogel/pySUMMA.git
+```
+
+Next, and lastly, install `moca` from the GitHub repo:
+
+```
+python -m pip install git+https://github.com/robert-vogel/moca.git
+```
 
 Example
 -------
