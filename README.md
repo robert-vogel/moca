@@ -121,4 +121,6 @@ ax.set_ylabel("Umoca Weights", fontsize=15)
 ax.set_position((0.2, 0.2, 0.75, 0.75))
 ```
 
+![weights](figs/umoca_weights.png)
+
 
