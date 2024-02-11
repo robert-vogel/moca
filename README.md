@@ -118,6 +118,7 @@ ax.scatter(true_weights, cl.weights)
 ax.axline((0,0), slope=1, linestyle=":")
 ax.set_xlabel("Empirical Weights", fontsize=15)
 ax.set_ylabel("Umoca Weights", fontsize=15)
+ax.set_position((0.2, 0.2, 0.75, 0.75))
 ```
 
 

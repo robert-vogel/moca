@@ -1,7 +1,6 @@
 *.DS_Store
 *~
 *.swp
-*/figs/
 */log/
 *.egg-info/
 *.pdf
