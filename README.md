@@ -70,7 +70,7 @@ Then let's simulate data
 m_classifiers = 15
 n_samples = 1000
 n_positives = 300
-auc_lims = (0.45, 0.65)
+auc_lims = (0.45, 0.75)
 
 seed = 42
 
@@ -79,7 +79,7 @@ auc = rng.uniform(low=auc_lims[0],
                   high=auc_lims[1],
                   size=m_classifiers)
 
-corr_matrix = simulate.make_corr_matrix(n_samples,
+corr_matrix = simulate.make_corr_matrix(m_classifiers,
                                         independent=True,
                                         seed=rng)
 data, labels = simulate.rank_scores(n_samples,
@@ -119,4 +119,5 @@ ax.axline((0,0), slope=1, linestyle=":")
 ax.set_xlabel("Empirical Weights", fontsize=15)
 ax.set_ylabel("Umoca Weights", fontsize=15)
 ```
+
 
