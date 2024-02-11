@@ -163,14 +163,17 @@ def roc(scores, labels):
     the trapezoidal integration rule.
 
     Args:
-        scores : ((N, ) np.ndarray) of scores, high correspond to
-            postive class samples
-        labels : ((N, ) np.ndarray) of labels where each element is in
-            the set {0, 1} with 1 and 0 corresponding to positive and 
+        scores : ((N, ) np.ndarray)
+            of scores, high correspond to postive class samples
+        labels : ((N, ) np.ndarray)
+            of labels where each element is in the set {0, 1}
+            with 1 and 0 corresponding to positive and 
             negative class samples.
+
     Return:
-        tuple ((N+1,) np.ndarray, (N+1, ) np.ndarray, float) of the 
-            false positive rates (fpr), true postive rates (tpr), and auc.
+        tuple ((N+1,) np.ndarray, (N+1, ) np.ndarray, float)
+            of the false positive rates (fpr), true postive
+            rates (tpr), and auc.
     """
 
     s = np.sum(labels)
