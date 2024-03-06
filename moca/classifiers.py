@@ -108,9 +108,14 @@ class MocaABC:
 
 
 class Woc(MocaABC):
-    def fit(self, data, labels):
+    def fit(self, data, labels=None):
         self.M = data.shape[0]
-        self.prevalence = np.mean(labels)
+
+        if labels is None:
+            self.prevalence = None
+        else:
+            self.prevalence = np.mean(labels)
+
         self.weights = np.ones(data.shape[0])
 
 
