@@ -117,7 +117,7 @@ def make_corr_matrix(m_classifiers, independent=False,
     return corr
 
 
-def gaussian_scores(n_samples, n_pos, auc, corr_matrix, seed=None):
+def gaussian_scores(n_samples, n_pos, auc, corr_matrix=None, seed=None):
     """Base classifier predictions and sample labels
 
     Args: 
@@ -145,6 +145,9 @@ def gaussian_scores(n_samples, n_pos, auc, corr_matrix, seed=None):
     if not stats.is_auc(auc):
         raise ValueError("Not valid AUC value(s).")
 
+    if corr_matrix is None:
+        corr_matrix = np.eye(auc.size)
+
     rng = np.random.default_rng(seed=seed)
 
     delta = stats.auc_to_delta(auc,
@@ -171,7 +174,7 @@ def gaussian_scores(n_samples, n_pos, auc, corr_matrix, seed=None):
     return scores, labels
 
 
-def rank_scores(n_samples, n_pos, auc, corr_matrix, seed=None):
+def rank_scores(n_samples, n_pos, auc, corr_matrix=None, seed=None):
     """Simulate rank scores and class labels.
 
     Args: 
@@ -195,7 +198,7 @@ def rank_scores(n_samples, n_pos, auc, corr_matrix, seed=None):
             binary labels, (0,1)
     """
     scores, labels = gaussian_scores(n_samples, n_pos,
-                                     auc, corr_matrix,
+                                     auc, corr_matrix=corr_matrix,
                                      seed=seed)
 
     return stats.rank_transform(scores), labels
