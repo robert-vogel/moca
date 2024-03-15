@@ -108,6 +108,9 @@ class MocaABC:
 
 
 class Woc(MocaABC):
+
+    is_supervised = False
+
     def fit(self, data, labels=None):
         self.M = data.shape[0]
 
@@ -258,6 +261,7 @@ class Smoca(MocaABC):
             number (default None).
     """
     _supported_subset_methods = ("greedy", None)
+    is_supervised = True
 
     def __init__(self, subset_select="greedy",
                  subset_select_par = None):
@@ -460,6 +464,9 @@ class Smoca(MocaABC):
 
 
 class Umoca(MocaABC):
+
+    is_supervised = False
+
     def __init__(self, prevalence=None, tol=1e-6, max_iter=5000):
         super().__init__()
         self.prevalence = prevalence
@@ -680,6 +687,10 @@ class BestBC(Smoca):
         super().__init__(subset_select="greedy",
                          subset_select_par=1)
 
+    @property
+    def name(self):
+        return "Best_BC"
+
 
 class BaseClassifier(MocaABC):
     """Helper class for interface consistency of ind. methods.
@@ -696,6 +707,8 @@ class BaseClassifier(MocaABC):
         cl_index: (int)
             index of classifier that the class should use
     """
+    is_supervised = True
+
     def __init__(self, cl_index):
 
         super().__init__()
