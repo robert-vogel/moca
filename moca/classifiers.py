@@ -109,15 +109,20 @@ class MocaABC:
 
 class Woc(MocaABC):
 
-    is_supervised = False
+    def __init__(self, is_supervised=False):
+        self.is_supervised = is_supervised
+        super().__init__()
 
     def fit(self, data, labels=None):
         self.M = data.shape[0]
 
-        if labels is None:
+        if not self.is_supervised and labels is None:
             self.prevalence = None
-        else:
+        elif self.is_supervised and labels is not None:
             self.prevalence = np.mean(labels)
+
+        else:
+            raise ValueError
 
         self.weights = np.ones(data.shape[0])
 
